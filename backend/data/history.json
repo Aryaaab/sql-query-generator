@@ -1,0 +1,68 @@
+[
+  {
+    "_id": "1782156603832",
+    "prompt": "Direct execution",
+    "sqlQuery": "SELECT * FROM customers;",
+    "schemaName": "HR & Company Database",
+    "status": "ERROR",
+    "rowsAffected": 0,
+    "executionTimeMs": 1.429,
+    "errorMessage": "SQLITE_ERROR: no such table: customers",
+    "timestamp": "2026-06-22T19:30:03.832Z"
+  },
+  {
+    "_id": "1782156584279",
+    "prompt": "Direct execution",
+    "sqlQuery": "SELECT * FROM employees;",
+    "schemaName": "E-Commerce Shop Database",
+    "status": "ERROR",
+    "rowsAffected": 0,
+    "executionTimeMs": 0.8173,
+    "errorMessage": "SQLITE_ERROR: no such table: employees",
+    "timestamp": "2026-06-22T19:29:44.279Z"
+  },
+  {
+    "_id": "1782073620528",
+    "prompt": "Show all employees in the IT department with salary over 60000",
+    "sqlQuery": "SELECT * FROM employees;",
+    "schemaName": "HR & Company Database",
+    "status": "SUCCESS",
+    "rowsAffected": 7,
+    "executionTimeMs": 2.1075,
+    "errorMessage": null,
+    "timestamp": "2026-06-21T20:27:00.528Z"
+  },
+  {
+    "_id": "1782073468782",
+    "prompt": "Show all employees in the IT department with salary oShow all employees in the IT department with salary over 60000ver 60000",
+    "sqlQuery": "SELECT * FROM employees;",
+    "schemaName": "HR & Company Database",
+    "status": "SUCCESS",
+    "rowsAffected": 7,
+    "executionTimeMs": 1.1499,
+    "errorMessage": null,
+    "timestamp": "2026-06-21T20:24:28.782Z"
+  },
+  {
+    "_id": "1782073342359",
+    "prompt": "Show all employees in the IT department with salary oShow all employees in the IT department with salary over 60000ver 60000",
+    "sqlQuery": "SELECT * FROM employees;",
+    "schemaName": "HR & Company Database",
+    "status": "SUCCESS",
+    "rowsAffected": 7,
+    "executionTimeMs": 1.4429,
+    "errorMessage": null,
+    "timestamp": "2026-06-21T20:22:22.359Z"
+  },
+  {
+    "_id": "1782058268392",
+    "prompt": "Show all employees in the IT department with salary oShow all employees in the IT department with salary over 60000ver 60000",
+    "sqlQuery": "SELECT * FROM employees;",
+    "schemaName": "HR & Company Database",
+    "status": "SUCCESS",
+    "rowsAffected": 7,
+    "executionTimeMs": 0.9258,
+    "errorMessage": null,
+    "timestamp": "2026-06-21T16:11:08.392Z"
+  }
+]
