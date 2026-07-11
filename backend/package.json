@@ -4,6 +4,9 @@
   "description": "SQL Query Generator Node.js Express Backend",
   "main": "server.js",
   "type": "commonjs",
+  "engines": {
+    "node": "20.19.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
