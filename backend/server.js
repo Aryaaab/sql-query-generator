@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const connectDB = require('./config/db');
 
 // Load env variables
@@ -15,7 +16,12 @@ const PORT = process.env.PORT || 8000;
 connectDB();
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : '*',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -37,6 +43,15 @@ app.get('/', (req, res) => {
     </body></html>
   `);
 });
+
+// Serve frontend production build in production
+const frontendBuild = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(frontendBuild)) {
+  app.use(express.static(frontendBuild));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendBuild, 'index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {

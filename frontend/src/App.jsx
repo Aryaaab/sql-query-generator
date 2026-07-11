@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
 const TABLE_LIMIT = 100;
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -19,6 +19,7 @@ const Ic = {
   Copy:     () => <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>,
   Refresh:  () => <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>,
   Link:     () => <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
+  Upload:   () => <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>,
 };
 
 const PRESETS = {
@@ -126,6 +127,11 @@ export default function App() {
   const [aiRunning,        setAiRunning]        = useState(false);
   const [openaiOk,         setOpenaiOk]         = useState(false);
   const [geminiOk,         setGeminiOk]         = useState(false);
+
+  // Resume extraction
+  const [resumeFile,       setResumeFile]       = useState(null);
+  const [resumeResult,     setResumeResult]     = useState(null);
+  const [resumeUploading,  setResumeUploading]  = useState(false);
 
   // History
   const [history,      setHistory]      = useState([]);
@@ -322,6 +328,36 @@ export default function App() {
     } catch (err) { notify('error', err.message); }
   };
 
+  // ── API: resume extraction ───────────────────────────────────────────────
+  const handleResumeUpload = async (e) => {
+    e.preventDefault();
+    if (!resumeFile) {
+      notify('error', 'Choose a resume file first.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('resume', resumeFile);
+    setResumeUploading(true);
+    setResumeResult(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/resume/extract`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Resume extraction failed.');
+      setResumeResult(data);
+      notify('success', `Extracted ${data.token_count} tokens.`);
+    } catch (err) {
+      setResumeResult({ success: false, message: err.message });
+      notify('error', err.message);
+    } finally {
+      setResumeUploading(false);
+    }
+  };
+
   // ── Effects ───────────────────────────────────────────────────────────────────
   useEffect(() => { fetchStatus(); fetchHistory(); connectDatabase('hr_company'); }, []);
 
@@ -457,6 +493,7 @@ export default function App() {
               { key: 'browser',  label: 'Table Browser', Icon: Ic.Table    },
               { key: 'editor',   label: 'SQL Editor',    Icon: Ic.Terminal },
               { key: 'ai',       label: 'AI Generator',  Icon: Ic.Stars    },
+              { key: 'resume',   label: 'Resume Upload', Icon: Ic.Upload   },
             ].map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -780,6 +817,72 @@ export default function App() {
                       <ResultsPanel result={aiResult} onClose={() => setAiResult(null)} />
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Tab: Resume Upload ── */}
+          {activeTab === 'resume' && (
+            <div className="tab-pane resume-pane">
+              <div className="resume-hero">
+                <Ic.Upload />
+                <div>
+                  <h2 className="resume-title">Resume Upload</h2>
+                  <p className="resume-sub">Extract readable text and tokens from PDF, DOCX, or TXT resumes.</p>
+                </div>
+              </div>
+
+              <form className="resume-form" onSubmit={handleResumeUpload}>
+                <label className="resume-drop">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={e => {
+                      setResumeFile(e.target.files?.[0] || null);
+                      setResumeResult(null);
+                    }}
+                  />
+                  <span className="resume-file-name">
+                    {resumeFile ? resumeFile.name : 'Choose resume file'}
+                  </span>
+                  <span className="resume-file-meta">PDF, DOCX, or TXT up to 8 MB</span>
+                </label>
+                <button type="submit" className="btn btn-primary" disabled={resumeUploading || !resumeFile}>
+                  {resumeUploading ? <><Spinner /> Extracting...</> : <><Ic.Upload /> Extract Resume</>}
+                </button>
+              </form>
+
+              {resumeResult && !resumeResult.success && (
+                <div className="resume-error">
+                  <strong>Extraction failed</strong>
+                  <p>{resumeResult.message}</p>
+                </div>
+              )}
+
+              {resumeResult?.success && (
+                <div className="resume-results">
+                  <div className="resume-stats">
+                    <span className="stat-pill">File: <strong>{resumeResult.file_name}</strong></span>
+                    <span className="stat-pill">Type: <strong>{resumeResult.file_type}</strong></span>
+                    <span className="stat-pill">Tokens: <strong>{resumeResult.token_count}</strong></span>
+                  </div>
+
+                  <div className="resume-grid">
+                    <section className="resume-panel">
+                      <div className="resume-panel-title">Extracted Text</div>
+                      <pre className="resume-text">{resumeResult.text}</pre>
+                    </section>
+
+                    <section className="resume-panel">
+                      <div className="resume-panel-title">Token Preview</div>
+                      <div className="token-list">
+                        {resumeResult.tokens.map((token, i) => (
+                          <span className="token-chip" key={`${token}-${i}`}>{token}</span>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
                 </div>
               )}
             </div>

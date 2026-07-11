@@ -3,6 +3,9 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
+const multer = require('multer');
+const mammoth = require('mammoth');
+const { PDFParse } = require('pdf-parse');
 
 // Import modules
 const dbManager = require('../modules/dbManager');
@@ -13,6 +16,67 @@ const queryValidator = require('../modules/queryValidator');
 const History = require('../models/History');
 
 const envPath = path.resolve(__dirname, '../.env');
+
+const resumeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
+
+const textMimeTypes = new Set([
+  'text/plain',
+  'text/markdown',
+  'application/octet-stream',
+]);
+
+const getResumeFileType = (file) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (file.mimetype === 'application/pdf' || ext === '.pdf') return 'pdf';
+  if (
+    file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    ext === '.docx'
+  ) return 'docx';
+  if (textMimeTypes.has(file.mimetype) || ['.txt', '.md', '.text'].includes(ext)) return 'text';
+  return null;
+};
+
+const normalizeResumeText = (text) =>
+  String(text || '')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+const tokenizeResume = (text) => {
+  const matches = normalizeResumeText(text).match(/[A-Za-z0-9]+(?:[+#._-][A-Za-z0-9]+)*/g);
+  return matches || [];
+};
+
+const extractResumeText = async (file) => {
+  const type = getResumeFileType(file);
+  if (!type) {
+    const ext = path.extname(file.originalname || '').toLowerCase() || file.mimetype || 'unknown';
+    const err = new Error(`Unsupported resume file type: ${ext}. Upload a PDF, DOCX, or TXT file.`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (type === 'pdf') {
+    const parser = new PDFParse({ data: file.buffer });
+    try {
+      const result = await parser.getText();
+      return normalizeResumeText(result.text);
+    } finally {
+      await parser.destroy();
+    }
+  }
+
+  if (type === 'docx') {
+    const result = await mammoth.extractRawText({ buffer: file.buffer });
+    return normalizeResumeText(result.value);
+  }
+
+  return normalizeResumeText(file.buffer.toString('utf8'));
+};
 
 // Helper to write keys to .env and refresh process.env
 const saveEnvKeys = (openaiKey, geminiKey) => {
@@ -73,6 +137,46 @@ router.post('/settings', (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/resume/extract - Upload a resume and extract text/tokens locally
+router.post('/resume/extract', resumeUpload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload a resume file named "resume".'
+      });
+    }
+
+    const text = await extractResumeText(req.file);
+    const tokens = tokenizeResume(text);
+
+    if (!tokens.length) {
+      return res.status(422).json({
+        success: false,
+        message: 'No readable text was found in this resume. If it is a scanned PDF, export it with selectable text and upload again.',
+        file_name: req.file.originalname,
+        text: '',
+        token_count: 0,
+        tokens: []
+      });
+    }
+
+    res.json({
+      success: true,
+      file_name: req.file.originalname,
+      file_type: getResumeFileType(req.file),
+      text,
+      token_count: tokens.length,
+      tokens: tokens.slice(0, 250)
+    });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({
+      success: false,
+      message: err.message || 'Failed to extract resume text.'
+    });
   }
 });
 
